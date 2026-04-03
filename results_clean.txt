@@ -1,0 +1,43 @@
+======================================================================
+Medical Triage Environment - OpenEnv Inference Runner
+======================================================================
+API Base URL : https://openrouter.ai/api/v1
+Model        : openai/gpt-4o-mini
+Token set    : YES
+
+
+[START] task_id=task_1 name='Stable Patient Triage' difficulty=easy target=0.6 cases=['PT-001', 'PT-002', 'PT-003', 'PT-004', 'PT-005']
+[STEP]  task_id=task_1 step=0 patient=PT-001 score=0.7783 assigned_level=4 correct_level=4
+[STEP]  task_id=task_1 step=1 patient=PT-002 score=0.7167 assigned_level=4 correct_level=4
+[STEP]  task_id=task_1 step=2 patient=PT-003 score=0.4962 assigned_level=4 correct_level=5
+[STEP]  task_id=task_1 step=3 patient=PT-004 score=0.4667 assigned_level=4 correct_level=5
+[STEP]  task_id=task_1 step=4 patient=PT-005 score=0.7000 assigned_level=5 correct_level=5
+[END]   task_id=task_1 score=0.6316 target=0.6 status=PASS wall_time_s=17.12
+
+[START] task_id=task_2 name='Mixed Urgency Triage' difficulty=medium target=0.4 cases=['PT-006', 'PT-008', 'PT-009', 'PT-010', 'PT-011']
+[STEP]  task_id=task_2 step=0 patient=PT-006 score=0.7333 assigned_level=2 correct_level=2
+[STEP]  task_id=task_2 step=1 patient=PT-008 score=0.7216 assigned_level=3 correct_level=3
+[STEP]  task_id=task_2 step=2 patient=PT-009 score=0.3306 assigned_level=2 correct_level=2
+[STEP]  task_id=task_2 step=3 patient=PT-010 score=0.1144 assigned_level=2 correct_level=3
+[STEP]  task_id=task_2 step=4 patient=PT-011 score=0.3959 assigned_level=2 correct_level=2
+[END]   task_id=task_2 score=0.4432 target=0.4 status=PASS wall_time_s=21.61
+
+[START] task_id=task_3 name='Complex Multi-System Critical Triage' difficulty=hard target=0.3 cases=['PT-012', 'PT-014', 'PT-015', 'PT-019', 'PT-024']
+[STEP]  task_id=task_3 step=0 patient=PT-012 score=0.3726 assigned_level=1 correct_level=1
+[STEP]  task_id=task_3 step=1 patient=PT-014 score=0.1005 assigned_level=2 correct_level=1
+[STEP]  task_id=task_3 step=2 patient=PT-015 score=0.1189 assigned_level=2 correct_level=1
+[STEP]  task_id=task_3 step=3 patient=PT-019 score=0.0388 assigned_level=2 correct_level=1
+[STEP]  task_id=task_3 step=4 patient=PT-024 score=0.4022 assigned_level=2 correct_level=2
+[END]   task_id=task_3 score=0.2066 target=0.3 status=FAIL wall_time_s=25.95
+
+======================================================================
+FINAL RESULTS
+======================================================================
+  task_1  [easy  ]  score=0.6316  target>=0.6  [OK] PASS
+  task_2  [medium]  score=0.4432  target>=0.4  [OK] PASS
+  task_3  [hard  ]  score=0.2066  target>=0.3  [FAIL] FAIL
+
+  Overall mean score : 0.4271
+  Total wall time    : 64.7s
+  LLM call stats     : {'total_calls': 15, 'total_latency_s': 64.69, 'avg_latency_s': 4.31}
+======================================================================

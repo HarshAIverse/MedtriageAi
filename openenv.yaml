@@ -1,0 +1,213 @@
+name: medical-triage-env
+version: "1.0.0"
+description: >
+  A reinforcement learning environment simulating a hospital Emergency Department triage desk.
+  An AI agent acts as a triage nurse, processing incoming patient cases by reading vitals,
+  symptoms, and medical history, then making structured clinical decisions.
+  The environment evaluates accuracy against medically-validated ground truth using a
+  partial-credit reward function that penalises missed life-threatening conditions.
+author: HarshAIverse
+license: MIT
+homepage: https://huggingface.co/spaces/HarshAIverse/medical-triage-env
+
+tasks:
+  - id: task_1
+    name: "Stable Patient Triage"
+    difficulty: easy
+    target_score: 0.60
+    num_cases: 5
+    description: >
+      Triage 5 clearly stable patients with minor injuries or benign presentations
+      (lacerations, sprains, viral URTI, mechanical back pain, pharyngitis).
+      All cases have normal or near-normal vitals and no life-threatening comorbidities.
+      The agent must correctly assign ESI 4–5 and recommend appropriate outpatient actions.
+
+  - id: task_2
+    name: "Mixed Urgency Triage"
+    difficulty: medium
+    target_score: 0.40
+    num_cases: 5
+    description: >
+      Triage 5 mixed-acuity cases including 2 with ambiguous initial presentations.
+      Cases include chest pain (ACS), renal colic, urosepsis, possible appendicitis,
+      and subarachnoid haemorrhage masquerading as migraine. The agent must distinguish
+      true emergencies (ESI 1–2) from urgent cases (ESI 3) and flag life-threatening conditions.
+
+  - id: task_3
+    name: "Complex Multi-System Critical Triage"
+    difficulty: hard
+    target_score: 0.20
+    num_cases: 5
+    description: >
+      Triage 5 complex critical cases: opioid overdose with partial naloxone response,
+      acute ischemic stroke on anticoagulation, third-degree heart block masquerading
+      as anxiety, meningococcal septicemia with penicillin anaphylaxis, and digoxin
+      toxicity in a patient who appears well. Misleading vitals and hidden conditions
+      are intentional. Missing critical flags incurs substantial penalties.
+
+observation_space:
+  type: structured_object
+  description: >
+    A structured patient snapshot returned at each timestep containing vital signs,
+    presenting symptoms, and full patient history.
+  fields:
+    - name: patient_id
+      type: string
+      description: Unique patient case identifier (e.g. PT-001)
+
+    - name: vitals
+      type: object
+      description: Current physiological measurements
+      subfields:
+        - name: heart_rate
+          type: integer
+          unit: bpm
+          description: Heart rate in beats per minute
+        - name: systolic_bp
+          type: integer
+          unit: mmHg
+          description: Systolic blood pressure
+        - name: diastolic_bp
+          type: integer
+          unit: mmHg
+          description: Diastolic blood pressure
+        - name: respiratory_rate
+          type: integer
+          unit: breaths/min
+          description: Respiratory rate
+        - name: temperature_celsius
+          type: float
+          unit: "°C"
+          description: Body temperature
+        - name: oxygen_saturation
+          type: float
+          unit: "%"
+          description: Peripheral oxygen saturation (SpO2)
+        - name: glasgow_coma_scale
+          type: integer
+          range: "3–15"
+          description: GCS total score (3=worst, 15=fully alert)
+        - name: pain_score
+          type: integer
+          range: "0–10"
+          description: Numeric pain rating scale
+
+    - name: symptoms
+      type: array[string]
+      description: List of presenting symptoms as reported by the patient or EMS
+
+    - name: history
+      type: object
+      description: Patient demographics and medical background
+      subfields:
+        - name: age
+          type: integer
+          unit: years
+        - name: sex
+          type: string
+          values: ["M", "F"]
+        - name: chief_complaint
+          type: string
+          description: Primary reason for presentation
+        - name: onset_hours
+          type: float
+          description: Hours since symptom onset
+        - name: past_medical_history
+          type: array[string]
+        - name: current_medications
+          type: array[string]
+        - name: allergies
+          type: array[string]
+        - name: surgical_history
+          type: array[string]
+
+    - name: additional_context
+      type: string
+      description: Nurse notes, EMS reports, lab/imaging results, clinical scores
+
+    - name: timestamp
+      type: string
+      format: ISO-8601
+      description: Time of triage presentation
+
+    - name: case_index
+      type: integer
+      description: Zero-based index of this case in the current episode
+
+    - name: total_cases
+      type: integer
+      description: Total number of cases in the current episode
+
+action_space:
+  type: structured_object
+  description: >
+    A structured triage decision comprising priority level, recommended clinical
+    actions, and any life-threatening flags the agent has identified.
+  fields:
+    - name: triage_level
+      type: integer
+      range: "1–5"
+      description: >
+        ESI (Emergency Severity Index) triage priority:
+        1 = Immediate (life-threatening — resuscitation required)
+        2 = Emergent (high-risk — should not wait)
+        3 = Urgent (stable but needs multiple resources)
+        4 = Less urgent (stable, needs 1 resource)
+        5 = Non-urgent (minor, no resources needed)
+
+    - name: recommended_actions
+      type: array[string]
+      min_length: 1
+      description: >
+        Ordered list of recommended clinical interventions
+        (e.g. "IV access", "12-lead ECG", "blood cultures x2", "CT head stat")
+
+    - name: critical_flags
+      type: array[string]
+      description: >
+        List of life-threatening diagnoses or conditions the agent suspects
+        (may be empty for clearly benign cases). Examples:
+        "acute ischemic stroke", "septic shock", "aortic dissection"
+
+    - name: reasoning
+      type: string
+      required: false
+      description: Optional clinical reasoning or differential diagnosis notes
+
+reward:
+  type: float
+  range: "0.0–1.0"
+  description: >
+    Composite reward signal with the following components:
+    - Triage level accuracy (40%): 1.0 exact, 0.5 for ±1 level, 0.0 for ≥2 levels off
+    - Action coverage (30%): keyword overlap with ground-truth canonical actions
+    - Critical flag recall (15%): proportion of life-threatening flags identified
+    - Critical flag bonus (up to +0.15): bonus for correctly catching critical flags
+    - Missing flag penalty (-0.3 max): penalty for missing life-threatening conditions
+    - Over-triage penalty (-0.1): penalty for assigning ESI 1–2 to ESI 4–5 patients
+
+environment:
+  max_steps_per_episode: 25
+  total_cases: 25
+  deterministic_grading: true
+  inference_timeout_minutes: 20
+  hardware_target: "2 vCPU / 8 GB RAM"
+  framework_compatibility:
+    - openai
+    - together
+    - huggingface-inference
+  api_base_env_var: API_BASE_URL
+  model_name_env_var: MODEL_NAME
+
+docker:
+  image: medical-triage-env
+  port: 7860
+  endpoints:
+    - path: /reset
+      method: POST
+    - path: /step
+      method: POST
+    - path: /state
+      method: GET
+    - path: /
+      method: GET

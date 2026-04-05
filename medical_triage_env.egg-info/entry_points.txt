@@ -1,0 +1,3 @@
+[console_scripts]
+medical-triage-infer = inference:main
+medical-triage-serve = app:app

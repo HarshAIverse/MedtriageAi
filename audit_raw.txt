@@ -1,0 +1,40 @@
+﻿
+=================================================================
+ PRE-SUBMISSION DEEP AUDIT
+=================================================================
+
+  Phase 1: Files & Structure
+python : Traceback (most 
+recent call last):
+At line:1 char:1
++ python _audit.py 2>&1 | 
+Out-File -Encoding UTF8 
+audit_raw.txt; python ...
++ ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (T  
+  raceback (most recent   
+  call last)::String)     
+[], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+  File "D:\Github\Meta\_au
+dit.py", line 135, in 
+<module>
+    print(f"  
+{'\u2500'*55}")
+  File "C:\Users\harshal\A
+ppData\Local\Programs\Pyth
+on\Python310\lib\encodings
+\cp1252.py", line 19, in 
+encode
+    return codecs.charmap_
+encode(input,self.errors,e
+ncoding_table)[0]
+UnicodeEncodeError: 
+'charmap' codec can't 
+encode characters in 
+position 2-56: character 
+maps to <undefined>

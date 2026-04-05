@@ -1,0 +1,76 @@
+﻿
+=================================================================
+ PRE-SUBMISSION DEEP AUDIT
+=================================================================
+
+  Phase 1: Files & Structure
+  -------------------------------------------------------
+    [OK  ]  File exists: inference.py
+    [OK  ]  File exists: environment.py
+    [OK  ]  File exists: tasks.py
+    [OK  ]  File exists: app.py
+    [OK  ]  File exists: openenv.yaml
+    [OK  ]  File exists: Dockerfile
+    [OK  ]  File exists: requirements.txt
+    [OK  ]  File exists: validate.py
+
+  Phase 1: Env Vars & Client
+  -------------------------------------------------------
+    [OK  ]  inference.py: reads API_BASE_URL
+    [OK  ]  inference.py: reads MODEL_NAME
+    [OK  ]  inference.py: reads HF_TOKEN
+    [OK  ]  inference.py: uses openai.OpenAI
+
+  Phase 1: Log Format
+  -------------------------------------------------------
+    [OK  ]  Emits [START] with task_id
+    [OK  ]  Emits [STEP]  with step=
+    [OK  ]  Emits [END]   with status=
+    [OK  ]  step= is 0-indexed integer
+
+  Phase 1: OpenEnv YAML
+  -------------------------------------------------------
+    [OK  ]  LLM calls via OpenAI client only
+    [OK  ]  openenv.yaml: name field
+    [OK  ]  openenv.yaml: 3 tasks
+    [OK  ]  openenv.yaml: observation_space
+    [OK  ]  openenv.yaml: action_space
+    [OK  ]  openenv.yaml: reward section
+    [OK  ]  openenv.yaml: docker section
+    [OK  ]  openenv.yaml: /reset endpoint
+    [OK  ]  openenv.yaml: /step endpoint
+    [OK  ]  openenv.yaml: /state endpoint
+
+  Phase 1: Dockerfile
+  -------------------------------------------------------
+    [OK  ]  openenv.yaml: reward range 0-1
+    [OK  ]  Dockerfile: python:3.11
+    [OK  ]  Dockerfile: EXPOSE 7860
+    [OK  ]  Dockerfile: uvicorn CMD
+
+  Phase 1: Grader Variance
+  -------------------------------------------------------
+    [OK  ]  Dockerfile: copies static
+
+  Phase 1: Task Graders
+  -------------------------------------------------------
+    [OK  ]  Grader returns VARIABLE scores (got 5 distinct across 25 cases)
+    [FAIL]  All 3 task graders run without error
+           Γå│ unhashable type: 'Vitals'
+    [OK  ]  Score varies with action quality
+    [OK  ]  Score gap > 0.3 (meaningful discrimination)
+
+  Phase 2: Score Discrimination
+  -------------------------------------------------------
+    [OK  ]  Inference script named inference.py
+    [OK  ]  Inference is non-trivial (>200 lines)
+
+  Anti-Disqualification
+  -------------------------------------------------------
+    [OK  ]  Environment has 25 distinct cases
+    [OK  ]  Grader does NOT always return same score
+    [OK  ]  No placeholder or stub code
+
+=================================================================
+  RESULT: 39 PASS  |  1 FAIL
+=================================================================

@@ -23,7 +23,7 @@ from __future__ import annotations
 from app import app  # noqa: F401  (re-export)
 
 
-def start() -> None:
+def main() -> None:
     """Entrypoint for the `medical-triage-serve` CLI script."""
     import uvicorn
 
@@ -37,4 +37,4 @@ def start() -> None:
 
 
 if __name__ == "__main__":
-    start()
+    main()

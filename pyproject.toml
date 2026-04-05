@@ -1,55 +1,12 @@
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "medical-triage-env"
-version = "1.0.0"
-description = "Medical Triage & Clinical Decision Support — OpenEnv RL Environment"
-readme = "README.md"
-license = { text = "MIT" }
-authors = [{ name = "HarshAIverse" }]
-requires-python = ">=3.10"
-keywords = ["reinforcement-learning", "medical", "triage", "openenv", "LLM"]
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Scientific/Engineering :: Medical Science Apps.",
-]
+name = "medtriage-ai"
+version = "0.1.0"
+description = "MedTriage AI OpenEnv environment"
 dependencies = [
-    "fastapi>=0.111.0",
-    "uvicorn[standard]>=0.29.0",
-    "pydantic>=2.6.0",
-    "openai>=1.30.0",
-    "python-multipart>=0.0.9",
-    "aiofiles>=23.2.0",
-    "openenv-core>=0.2.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "httpx>=0.27.0",
+    "fastapi",
+    "uvicorn",
+    "openenv-core>=0.2.0"
 ]
 
 [project.scripts]
-# Run inference:  medical-triage-infer
-medical-triage-infer = "inference:main"
-# Serve API:      medical-triage-serve
-medical-triage-serve = "server.app:start"
-
-[project.urls]
-Homepage   = "https://huggingface.co/spaces/HarshAIverse/medical-triage-env"
-Repository = "https://huggingface.co/spaces/HarshAIverse/medical-triage-env"
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["*"]
-exclude = ["_*", "*.txt", "*.yaml", "static*"]
-
-[tool.setuptools.package-data]
-"*" = ["static/*.html", "static/*.css", "openenv.yaml"]
+medical-triage-serve = "server.app:main"

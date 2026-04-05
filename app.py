@@ -1,253 +1,276 @@
 """
-app.py - FastAPI wrapper for Medical Triage Environment
-OpenEnv Submission - HarshAIverse/Meta
-
-Endpoints:
-    POST /reset   - Start a new episode
-    POST /step    - Take an action in the current episode
-    GET  /state   - Return full environment state
-    GET  /        - Health check
-    GET  /docs    - Auto-generated Swagger UI (FastAPI built-in)
+app.py — MedTriage AI FastAPI Server
+Serves the static dashboard and exposes the OpenEnv REST API.
 """
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from typing import Any, Optional
+import os
+import time
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
-from environment import (
-    Action,
-    MedicalTriageEnv,
-    Observation,
-    Reward,
-)
-
+from environment import Action, MedicalTriageEnv, PATIENT_CASES
+from tasks import TASK_REGISTRY
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Application lifespan - create shared environment instance
-# ─────────────────────────────────────────────────────────────────────────────
-
-_env: Optional[MedicalTriageEnv] = None
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global _env
-    _env = MedicalTriageEnv(seed=42)
-    yield
-    _env = None
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# App instantiation
+# App Setup
 # ─────────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Medical Triage Environment API",
-    description=(
-        "OpenEnv-compatible REST API for the Medical Triage & Clinical Decision Support "
-        "environment. An AI agent acts as a triage nurse, processing patient cases and "
-        "receiving reward signals for correct clinical decisions."
-    ),
+    title="MedTriage AI — OpenEnv",
+    description="Medical Triage & Clinical Decision Support RL environment.",
     version="1.0.0",
-    lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Global environment instance
+env = MedicalTriageEnv(seed=42)
+
+# Mount static files (dashboard)
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(_STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Request / Response schemas
+# Request / Response Models
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ResetRequest(BaseModel):
-    case_ids: Optional[list[str]] = Field(
-        default=None,
-        description=(
-            "Optional list of patient IDs to include in this episode. "
-            "If omitted, all 25 cases are used."
-        ),
-        examples=[["PT-001", "PT-002", "PT-003", "PT-004", "PT-005"]],
-    )
-    shuffle: bool = Field(
-        default=True,
-        description="Whether to randomise case order within the episode.",
-    )
-    seed: Optional[int] = Field(
-        default=42,
-        description="RNG seed for reproducible shuffling. Ignored when shuffle=False.",
-    )
-
-
-class ResetResponse(BaseModel):
-    observation: Observation
-    message: str = "Episode started successfully."
+    case_ids: Optional[List[str]] = None
+    shuffle: bool = False
+    seed: Optional[int] = 42
 
 
 class StepRequest(BaseModel):
-    action: Action
+    action: Dict[str, Any]
 
 
-class StepResponse(BaseModel):
-    observation: Optional[Observation] = Field(
-        default=None,
-        description="Next patient observation. None when episode is done.",
-    )
-    reward: Reward
-    done: bool
-    info: dict[str, Any]
-
-
-class StateResponse(BaseModel):
-    state: dict[str, Any]
-
-
-class HealthResponse(BaseModel):
-    status: str = "ok"
-    version: str = "1.0.0"
-    environment: str = "medical-triage-env"
-    total_cases_available: int = 25
-
-
-class CasesResponse(BaseModel):
-    cases_by_difficulty: dict[str, list[str]]
-    total: int
+class RunTaskRequest(BaseModel):
+    task_id: str = "task_1"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helper
+# Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _get_env() -> MedicalTriageEnv:
-    if _env is None:
-        raise HTTPException(status_code=503, detail="Environment not initialised.")
-    return _env
+@app.get("/", include_in_schema=False)
+async def root():
+    """Serve the dashboard or a health-check JSON."""
+    index_path = os.path.join(_STATIC_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    return {"status": "ok", "version": "1.0.0", "message": "static/index.html not found"}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Endpoints
-# ─────────────────────────────────────────────────────────────────────────────
-
-@app.get("/", response_model=HealthResponse, tags=["Health"])
-async def health_check() -> HealthResponse:
-    """
-    Health check endpoint.
-
-    Returns environment status and version information.
-    """
-    return HealthResponse()
+@app.get("/health")
+async def health():
+    """Health-check endpoint polled by the dashboard every 5 s."""
+    return {"status": "ok", "version": "1.0.0", "timestamp": time.time()}
 
 
-@app.post("/reset", response_model=ResetResponse, tags=["Environment"])
-async def reset(request: ResetRequest = ResetRequest()) -> ResetResponse:
+@app.post("/reset")
+async def reset(req: ResetRequest = ResetRequest()):
     """
     Start a new episode.
-
-    Optionally select specific patient cases by ID and control shuffling.
-    Returns the first patient observation.
+    Optionally specify case_ids to run only specific patients.
     """
-    env = _get_env()
-
-    # Re-seed if requested
-    if request.seed is not None:
-        import random
-        env._rng = random.Random(request.seed)
-
     try:
-        obs = env.reset(case_ids=request.case_ids, shuffle=request.shuffle)
+        obs = env.reset(case_ids=req.case_ids, shuffle=req.shuffle)
+        return obs.model_dump()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    return ResetResponse(observation=obs)
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/step", response_model=StepResponse, tags=["Environment"])
-async def step(request: StepRequest) -> StepResponse:
+@app.post("/step")
+async def step(req: StepRequest):
     """
     Submit a triage action for the current patient.
-
-    The action must include:
-    - `triage_level` (1-5 ESI priority)
-    - `recommended_actions` (list of clinical interventions)
-    - `critical_flags` (life-threatening conditions, if any)
-
-    Returns the next observation, reward, done flag, and diagnostic info.
+    Returns: observation (next), reward, done flag, info dict.
     """
-    env = _get_env()
+    try:
+        action_data = req.action
 
-    if not env._episode_cases:
-        raise HTTPException(
-            status_code=400,
-            detail="No active episode. Call POST /reset first.",
+        # Robust coercion (same as inference.py)
+        raw_level = action_data.get("triage_level", 3)
+        try:
+            level = max(1, min(5, int(float(str(raw_level).strip()))))
+        except (ValueError, TypeError):
+            level = 3
+
+        raw_actions = action_data.get("recommended_actions") or []
+        if isinstance(raw_actions, str):
+            raw_actions = [a.strip() for a in raw_actions.split(",") if a.strip()]
+        actions = [str(a) for a in raw_actions if a] or ["clinical assessment"]
+
+        raw_flags = action_data.get("critical_flags") or []
+        if isinstance(raw_flags, str):
+            raw_flags = [f.strip() for f in raw_flags.split(",") if f.strip()]
+        flags = [str(f) for f in raw_flags if f]
+
+        action = Action(
+            triage_level=level,
+            recommended_actions=actions,
+            critical_flags=flags,
+            reasoning=str(action_data.get("reasoning") or ""),
         )
-    if env._current_index >= len(env._episode_cases):
-        raise HTTPException(
-            status_code=400,
-            detail="Episode is complete. Call POST /reset to start a new episode.",
-        )
 
-    next_obs, reward, done, info = env.step(request.action)
+        next_obs, reward, done, info = env.step(action)
 
-    return StepResponse(
-        observation=next_obs,
-        reward=reward,
-        done=done,
-        info=info,
-    )
+        return {
+            "observation": next_obs.model_dump() if next_obs else None,
+            "reward": reward.model_dump(),
+            "done": done,
+            "info": info,
+        }
 
-
-@app.get("/state", response_model=StateResponse, tags=["Environment"])
-async def get_state() -> StateResponse:
-    """
-    Retrieve the full current environment state.
-
-    Returns episode progress, scores to date, current patient ID,
-    last action taken, and last reward received.
-    """
-    env = _get_env()
-    return StateResponse(state=env.state())
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
-@app.get("/cases", response_model=CasesResponse, tags=["Environment"])
-async def list_cases() -> CasesResponse:
-    """
-    List all available patient case IDs grouped by difficulty.
-
-    Useful for constructing custom episodes or inspecting the case library.
-    """
-    env = _get_env()
-    by_diff = env.case_ids_by_difficulty
-    total = sum(len(v) for v in by_diff.values())
-    return CasesResponse(cases_by_difficulty=by_diff, total=total)
+@app.get("/state")
+async def state():
+    """Return the current full environment state."""
+    return env.state()
 
 
-@app.get("/case/{patient_id}", tags=["Environment"])
-async def get_case_info(patient_id: str) -> dict[str, Any]:
-    """
-    Retrieve metadata for a specific patient case (without revealing ground truth labels).
+@app.get("/cases")
+async def list_cases():
+    """List all 25 patient cases, grouped by difficulty."""
+    by_diff: dict[str, list[str]] = {"easy": [], "medium": [], "hard": []}
+    for c in PATIENT_CASES:
+        by_diff.setdefault(c.difficulty, []).append(c.patient_id)
+    return {
+        "total": len(PATIENT_CASES),
+        "cases_by_difficulty": by_diff,
+        "all_ids": [c.patient_id for c in PATIENT_CASES],
+    }
 
-    Returns patient ID, difficulty, and chief complaint only.
-    """
-    env = _get_env()
+
+@app.get("/case/{patient_id}")
+async def get_case(patient_id: str):
+    """Return metadata for a specific patient case."""
     case = env.get_case_by_id(patient_id)
-    if case is None:
-        raise HTTPException(status_code=404, detail=f"Patient ID '{patient_id}' not found.")
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Case {patient_id!r} not found.")
     return {
         "patient_id": case.patient_id,
+        "vitals": case.vitals,
+        "symptoms": case.symptoms,
+        "history": case.history,
+        "additional_context": case.additional_context,
         "difficulty": case.difficulty,
-        "chief_complaint": case.history.get("chief_complaint", ""),
-        "age": case.history.get("age"),
-        "sex": case.history.get("sex"),
+        "correct_triage_level": case.correct_triage_level,
+        "correct_actions": case.correct_actions,
+        "critical_flags": case.critical_flags,
+        "explanation": case.explanation,
+    }
+
+
+@app.get("/tasks")
+async def get_tasks():
+    """Return the 3 task definitions with metadata."""
+    tasks = []
+    for tid, meta in TASK_REGISTRY.items():
+        tasks.append({
+            "id": tid,
+            "name": meta.name,
+            "difficulty": meta.difficulty,
+            "target_score": meta.target_score,
+            "description": meta.description,
+            "case_ids": meta.case_ids,
+        })
+    return {"tasks": tasks}
+
+
+@app.post("/run_task")
+async def run_task(req: RunTaskRequest):
+    """
+    Run a full task episode using the built-in baseline heuristic agent.
+    Returns per-step results and final grade.
+    """
+    task_id = req.task_id
+    if task_id not in TASK_REGISTRY:
+        raise HTTPException(status_code=400, detail=f"Unknown task_id: {task_id!r}. Valid: {list(TASK_REGISTRY)}")
+
+    meta = TASK_REGISTRY[task_id]
+
+    # Simple heuristic baseline agent
+    def heuristic_agent(obs):
+        v = obs.vitals
+        if v.glasgow_coma_scale < 13 or v.oxygen_saturation < 90 or v.systolic_bp < 90:
+            return Action(triage_level=1,
+                          recommended_actions=["IV access x2", "oxygen 100%", "emergency consult"],
+                          critical_flags=["critical deterioration"],
+                          reasoning="Heuristic: critical vitals")
+        elif v.oxygen_saturation < 94 or v.heart_rate > 120 or v.systolic_bp < 100:
+            return Action(triage_level=2,
+                          recommended_actions=["IV access", "labs", "cardiac monitoring"],
+                          critical_flags=[],
+                          reasoning="Heuristic: compromised vitals")
+        elif v.heart_rate > 100 or v.temperature_celsius > 38.5:
+            return Action(triage_level=3,
+                          recommended_actions=["labs", "IV access", "assessment"],
+                          critical_flags=[],
+                          reasoning="Heuristic: mild abnormality")
+        elif v.pain_score > 5:
+            return Action(triage_level=4,
+                          recommended_actions=["analgesia", "assessment"],
+                          critical_flags=[],
+                          reasoning="Heuristic: pain")
+        else:
+            return Action(triage_level=5,
+                          recommended_actions=["physical exam", "discharge instructions"],
+                          critical_flags=[],
+                          reasoning="Heuristic: stable")
+
+    # Run episode
+    t0 = time.monotonic()
+    obs = env.reset(case_ids=meta.case_ids, shuffle=False)
+    steps = []
+    done = False
+
+    while not done:
+        action = heuristic_agent(obs)
+        next_obs, reward, done, info = env.step(action)
+        steps.append({
+            "case_id": info["case_id"],
+            "assigned_triage_level": action.triage_level,
+            "correct_triage_level": info["correct_triage_level"],
+            "score": reward.score,
+            "reward_breakdown": reward.breakdown,
+            "critical_flags_predicted": action.critical_flags,
+            "critical_flags_correct": info["correct_critical_flags"],
+            "difficulty": info["difficulty"],
+        })
+        obs = next_obs
+
+    wall_time = time.monotonic() - t0
+    scores = [s["score"] for s in steps]
+    final_score = round(sum(scores) / len(scores), 4) if scores else 0.0
+
+    return {
+        "task_id": task_id,
+        "task_name": meta.name,
+        "difficulty": meta.difficulty,
+        "target_score": meta.target_score,
+        "final_score": final_score,
+        "passed": final_score >= meta.target_score,
+        "wall_time_s": round(wall_time, 2),
+        "steps": steps,
+        "agent": "heuristic_baseline",
     }

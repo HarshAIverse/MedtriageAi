@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MedTriage AI — OpenEnv Dashboard</title>
+  <meta name="description" content="Medical Triage & Clinical Decision Support AI environment dashboard. ESI triage scoring, patient vitals, and clinical decision logging." />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- ── HEADER ─────────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <h1 class="header-title">Med<span>Triage</span> AI</h1>
+      <span class="badge">OpenEnv v1.0</span>
+    </div>
+    <div class="connection-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Connecting…</span>
+    </div>
+  </header>
+
+  <!-- ── BODY ───────────────────────────────────── -->
+  <div class="body-layout">
+
+    <!-- ── SIDEBAR ──────────────────────────────── -->
+    <aside class="sidebar">
+
+      <!-- Stats bar -->
+      <div class="stats-bar">
+        <div>
+          <div class="sidebar-label">Session Score</div>
+          <div class="stat-value" id="avgScore">—</div>
+          <div class="mini-score-bar" style="margin-top:6px">
+            <div class="mini-score-fill" id="avgScoreBar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Steps</span>
+          <span id="stepCount" style="font-size:13px;font-weight:700">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Task</span>
+          <span id="activeTaskLabel" style="font-size:12px;font-weight:600;color:var(--text-secondary)">None</span>
+        </div>
+      </div>
+
+      <!-- Task selector -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">Select Task</div>
+
+        <div class="task-card selected" data-task="task_1" onclick="selectTask('task_1')">
+          <div class="task-card-header">
+            <span class="task-card-name">Task 1 — Stable Triage</span>
+            <span class="difficulty-badge easy">Easy</span>
+          </div>
+          <div class="task-card-desc">5 clearly stable patients. Normal vitals, benign presentations.</div>
+          <div class="task-card-target">Target: <strong>&ge; 0.60</strong></div>
+        </div>
+
+        <div class="task-card" data-task="task_2" onclick="selectTask('task_2')">
+          <div class="task-card-header">
+            <span class="task-card-name">Task 2 — Mixed Cases</span>
+            <span class="difficulty-badge medium">Medium</span>
+          </div>
+          <div class="task-card-desc">5 mixed cases, 2 with ambiguous presentations.</div>
+          <div class="task-card-target">Target: <strong>&ge; 0.40</strong></div>
+        </div>
+
+        <div class="task-card" data-task="task_3" onclick="selectTask('task_3')">
+          <div class="task-card-header">
+            <span class="task-card-name">Task 3 — Critical Cases</span>
+            <span class="difficulty-badge hard">Hard</span>
+          </div>
+          <div class="task-card-desc">5 complex multi-system cases with deceptive features.</div>
+          <div class="task-card-target">Target: <strong>&ge; 0.20</strong></div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="sidebar-actions">
+        <button class="btn btn-primary btn-full" id="btnRunTask" onclick="runTask()">
+          &#9654; Run Task
+        </button>
+        <button class="btn btn-secondary btn-full" id="btnReset" onclick="resetEnv()">
+          &#8635; Reset Episode
+        </button>
+        <button class="btn btn-secondary btn-full btn-sm" onclick="toggleLog()">
+          &#9776; Toggle Live Log
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- ── MAIN CONTENT ───────────────────────── -->
+    <div class="main-content">
+      <div class="main-scroll">
+
+        <!-- Episode Results (hidden initially) -->
+        <div class="episode-results" id="episodeResults">
+          <div class="episode-header">
+            <div>
+              <div class="episode-title" id="episodeTitle">Task Complete</div>
+              <div id="episodePassFail"></div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:11px;opacity:0.7;margin-bottom:4px">FINAL SCORE</div>
+              <div class="episode-score" id="episodeFinalScore">—</div>
+            </div>
+          </div>
+          <div class="episode-body">
+            <div class="section-title">Per-Patient Scores</div>
+            <div class="patient-bars" id="patientBars"></div>
+            <div class="section-title" style="margin-top:16px">Step Log</div>
+            <div class="table-scroll">
+              <table class="step-log-table">
+                <thead>
+                  <tr>
+                    <th>Step</th>
+                    <th>Patient</th>
+                    <th>Chief Complaint</th>
+                    <th>ESI Assigned</th>
+                    <th>Correct ESI</th>
+                    <th>Score</th>
+                    <th>Flags</th>
+                  </tr>
+                </thead>
+                <tbody id="stepLogBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Triage Layout -->
+        <div class="triage-layout" id="triageLayout">
+
+          <!-- ── LEFT: Patient Vitals ────────────── -->
+          <div class="card" id="patientCard">
+            <div class="card-header">
+              <span class="card-title">Patient Information</span>
+              <div class="patient-counter">
+                <span id="patientCounter" class="counter-badge">—</span>
+                <span id="patientId" style="font-size:12px;color:var(--text-muted)"></span>
+              </div>
+            </div>
+            <div class="card-body" id="patientCardBody">
+              <div class="no-patient-msg" id="noPatientMsg">
+                <div class="icon">🏥</div>
+                <p>Select a task and click <strong>Run Task</strong> to begin triage.</p>
+              </div>
+              <div id="patientData" style="display:none">
+
+                <!-- Chief Complaint -->
+                <div class="chief-complaint" id="chiefComplaint">—</div>
+
+                <!-- Vitals Grid -->
+                <div class="vitals-grid" id="vitalsGrid">
+                  <div class="vital-card" id="vHR">
+                    <div class="vital-label">Heart Rate</div>
+                    <div class="vital-value" id="vHRVal">—</div>
+                    <div class="vital-unit">bpm</div>
+                  </div>
+                  <div class="vital-card" id="vBP">
+                    <div class="vital-label">Blood Pressure</div>
+                    <div class="vital-value" id="vBPVal">—</div>
+                    <div class="vital-unit">mmHg</div>
+                  </div>
+                  <div class="vital-card" id="vRR">
+                    <div class="vital-label">Resp. Rate</div>
+                    <div class="vital-value" id="vRRVal">—</div>
+                    <div class="vital-unit">br/min</div>
+                  </div>
+                  <div class="vital-card" id="vSpo2">
+                    <div class="vital-label">SpO2</div>
+                    <div class="vital-value" id="vSpo2Val">—</div>
+                    <div class="vital-unit">%</div>
+                  </div>
+                  <div class="vital-card" id="vTemp">
+                    <div class="vital-label">Temperature</div>
+                    <div class="vital-value" id="vTempVal">—</div>
+                    <div class="vital-unit">°C</div>
+                  </div>
+                  <div class="vital-card" id="vGCS">
+                    <div class="vital-label">GCS</div>
+                    <div class="vital-value" id="vGCSVal">—</div>
+                    <div class="vital-unit">/ 15</div>
+                  </div>
+                </div>
+
+                <!-- Symptoms -->
+                <div class="section-title">Symptoms</div>
+                <div class="pills-container" id="symptomsContainer"></div>
+
+                <!-- History -->
+                <div class="section-title">Patient History</div>
+                <div class="history-block">
+                  <div class="history-row">
+                    <span class="history-key">Age / Sex</span>
+                    <span class="history-val" id="hAgeSex">—</span>
+                  </div>
+                  <div class="history-row">
+                    <span class="history-key">Onset</span>
+                    <span class="history-val" id="hOnset">—</span>
+                  </div>
+                  <div class="history-row">
+                    <span class="history-key">PMH</span>
+                    <span class="history-val" id="hPMH">—</span>
+                  </div>
+                  <div class="history-row">
+                    <span class="history-key">Medications</span>
+                    <span class="history-val" id="hMeds">—</span>
+                  </div>
+                  <div class="history-row">
+                    <span class="history-key">Allergies</span>
+                    <span class="history-val" id="hAllergies">—</span>
+                  </div>
+                  <div class="history-row">
+                    <span class="history-key">Surgical Hx</span>
+                    <span class="history-val" id="hSurgical">—</span>
+                  </div>
+                </div>
+
+                <!-- Additional Context -->
+                <div class="additional-context" id="additionalContext" style="display:none"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── RIGHT: Triage Action Panel ──────── -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Triage Decision</span>
+              <span id="esiSelectedLabel" style="font-size:12px;color:var(--text-muted)">No ESI selected</span>
+            </div>
+            <div class="card-body">
+
+              <!-- ESI Selector -->
+              <div class="section-title">ESI Priority Level</div>
+              <div class="esi-grid">
+                <button class="esi-btn" data-esi="1" onclick="selectESI(1)" id="esibtn1">
+                  <span class="esi-btn-num">1</span>
+                  <span class="esi-btn-label">Immediate</span>
+                </button>
+                <button class="esi-btn" data-esi="2" onclick="selectESI(2)" id="esibtn2">
+                  <span class="esi-btn-num">2</span>
+                  <span class="esi-btn-label">Emergent</span>
+                </button>
+                <button class="esi-btn" data-esi="3" onclick="selectESI(3)" id="esibtn3">
+                  <span class="esi-btn-num">3</span>
+                  <span class="esi-btn-label">Urgent</span>
+                </button>
+                <button class="esi-btn" data-esi="4" onclick="selectESI(4)" id="esibtn4">
+                  <span class="esi-btn-num">4</span>
+                  <span class="esi-btn-label">Less Urgent</span>
+                </button>
+                <button class="esi-btn" data-esi="5" onclick="selectESI(5)" id="esibtn5">
+                  <span class="esi-btn-num">5</span>
+                  <span class="esi-btn-label">Non-Urgent</span>
+                </button>
+              </div>
+
+              <!-- Recommended Actions -->
+              <div class="chip-section">
+                <div class="chip-section-label">
+                  Recommended Actions
+                  <span class="chip-count" id="actionCount">0</span>
+                </div>
+                <div class="chip-input-row">
+                  <input type="text" class="chip-input" id="actionInput"
+                    placeholder="Type action and press Enter or Add…"
+                    onkeydown="if(event.key==='Enter'){addAction();}" />
+                  <button class="btn btn-secondary btn-sm" onclick="addAction()">Add</button>
+                </div>
+                <div class="chips-display" id="actionsChips"></div>
+              </div>
+
+              <!-- Critical Flags -->
+              <div class="chip-section">
+                <div class="chip-section-label">
+                  Critical Flags
+                  <span class="chip-count" id="flagCount">0</span>
+                </div>
+                <div class="chip-input-row">
+                  <input type="text" class="chip-input" id="flagInput"
+                    placeholder="Life-threatening condition (empty if none)…"
+                    onkeydown="if(event.key==='Enter'){addFlag();}" />
+                  <button class="btn btn-secondary btn-sm" onclick="addFlag()">Add</button>
+                </div>
+                <div class="chips-display" id="flagsChips"></div>
+              </div>
+
+              <!-- Submit -->
+              <div class="submit-section">
+                <button class="btn btn-primary btn-full" id="btnSubmit" onclick="submitTriage()" disabled>
+                  &#10003; Submit Triage Decision
+                </button>
+              </div>
+
+              <!-- Reward Feedback -->
+              <div class="reward-panel" id="rewardPanel">
+                <div class="reward-total">
+                  <div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">STEP SCORE</div>
+                    <div class="reward-score-num" id="rewardScoreNum">—</div>
+                  </div>
+                  <div class="reward-label" id="rewardFeedbackShort"></div>
+                </div>
+                <div class="score-bar-wrap">
+                  <div class="score-bar-fill" id="rewardBar"></div>
+                </div>
+                <table class="breakdown-table">
+                  <tbody id="breakdownBody"></tbody>
+                  <tfoot>
+                    <tr class="total-row">
+                      <td>Total</td>
+                      <td class="neutral" id="breakdownTotal">—</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+            </div>
+          </div>
+        </div><!-- /triage-layout -->
+
+      </div><!-- /main-scroll -->
+
+      <!-- ── LIVE LOG ────────────────────────────── -->
+      <div class="log-panel">
+        <div class="log-toggle" onclick="toggleLog()" id="logToggleBar">
+          <div class="log-toggle-title">
+            <div class="log-dot"></div>
+            Live API Log
+            <span id="logCount" style="font-size:11px;color:var(--text-muted)">(0 entries)</span>
+          </div>
+          <div class="log-toggle-actions">
+            <button class="btn btn-secondary btn-sm" onclick="clearLog(event)" style="font-size:11px;padding:3px 8px">Clear</button>
+            <span class="log-chevron" id="logChevron">&#9650;</span>
+          </div>
+        </div>
+        <div class="log-body" id="logBody"></div>
+      </div>
+
+    </div><!-- /main-content -->
+  </div><!-- /body-layout -->
+</div><!-- /app-wrapper -->
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+/* ══════════════════════════════════════════════
+   MedTriage AI — Dashboard JavaScript
+   ══════════════════════════════════════════════ */
+
+// ── State ──────────────────────────────────────
+const state = {
+  connected: false,
+  selectedTask: 'task_1',
+  selectedESI: null,
+  actions: [],
+  flags: [],
+  currentObs: null,
+  episodeSteps: [],
+  episodeRunning: false,
+  scores: [],
+  logEntries: [],
+  logOpen: false,
+};
+
+// ESI auto-suggestions
+const ESI_SUGGESTIONS = {
+  1: ['Call code team', 'Airway management – prepare for intubation', 'IV access x2 large-bore', 'Cardiac monitor + continuous SpO2', 'O2 100% non-rebreather', 'Defibrillator on standby'],
+  2: ['12-lead ECG stat', 'IV access', 'Cardiac monitor', 'Labs: BMP/CBC/troponin/coags', 'Oxygen supplementation', 'Specialist consult'],
+  3: ['IV access', 'Labs ordered (CBC/BMP)', 'Imaging ordered', 'Pain assessment and analgesia', 'Nursing assessment', 'Reassess in 30 min'],
+  4: ['Single resource ordered', 'Vitals recheck in 30 min', 'Patient education', 'Analgesia if needed'],
+  5: ['Physical exam only', 'Discharge instructions', 'Outpatient follow-up advised'],
+};
+
+const ESI_LABELS = {1:'Immediate', 2:'Emergent', 3:'Urgent', 4:'Less Urgent', 5:'Non-Urgent'};
+
+// ── Connection Check ───────────────────────────
+async function checkConnection() {
+  try {
+    const r = await fetch('/health', { signal: AbortSignal.timeout(3000) });
+    setConnected(r.ok);
+  } catch {
+    setConnected(false);
+  }
+}
+
+function setConnected(ok) {
+  state.connected = ok;
+  document.getElementById('statusDot').className = 'status-dot ' + (ok ? 'connected' : 'disconnected');
+  document.getElementById('statusText').textContent = ok ? 'Connected' : 'Disconnected';
+}
+
+setInterval(checkConnection, 5000);
+checkConnection();
+
+// ── API Helpers ────────────────────────────────
+async function api(method, path, body) {
+  const t0 = Date.now();
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+
+  let status = 0;
+  try {
+    const res = await fetch(path, opts);
+    status = res.status;
+    const data = await res.json();
+    logApi(method, path, status, Date.now() - t0);
+    if (!res.ok) throw new Error(data.detail || data.message || `HTTP ${status}`);
+    return data;
+  } catch (e) {
+    logApi(method, path, status || 'ERR', Date.now() - t0);
+    if (e.name !== 'AbortError') showToast(e.message, 'error');
+    throw e;
+  }
+}
+
+// ── Loading button helper ──────────────────────
+function setLoading(btn, loading, originalHTML) {
+  if (loading) {
+    btn._original = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Please wait…';
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = originalHTML || btn._original || btn.innerHTML;
+    btn.disabled = false;
+  }
+}
+
+// ── Task Selection ─────────────────────────────
+function selectTask(taskId) {
+  state.selectedTask = taskId;
+  document.querySelectorAll('.task-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.task === taskId);
+  });
+  const names = { task_1: 'Task 1 – Easy', task_2: 'Task 2 – Medium', task_3: 'Task 3 – Hard' };
+  document.getElementById('activeTaskLabel').textContent = names[taskId] || taskId;
+}
+
+// ── Run Task ───────────────────────────────────
+async function runTask() {
+  const btn = document.getElementById('btnRunTask');
+  setLoading(btn, true);
+  try {
+    hideEpisodeResults();
+    state.episodeSteps = [];
+    state.scores = [];
+    state.episodeRunning = true;
+
+    // Reset env with selected task cases
+    const taskCases = {
+      task_1: ['PT-001','PT-002','PT-003','PT-004','PT-005'],
+      task_2: ['PT-006','PT-008','PT-009','PT-010','PT-011'],
+      task_3: ['PT-012','PT-014','PT-015','PT-019','PT-024'],
+    };
+    const cases = taskCases[state.selectedTask] || [];
+    const data = await api('POST', '/reset', { case_ids: cases, shuffle: false });
+    renderObservation(data);
+    showToast(`Task started — ${cases.length} patients queued`, 'success');
+  } catch(e) {
+    state.episodeRunning = false;
+  } finally {
+    setLoading(btn, false, '&#9654; Run Task');
+  }
+}
+
+// ── Reset ──────────────────────────────────────
+async function resetEnv() {
+  const btn = document.getElementById('btnReset');
+  setLoading(btn, true);
+  try {
+    hideEpisodeResults();
+    state.episodeSteps = [];
+    state.scores = [];
+    state.currentObs = null;
+    state.episodeRunning = false;
+    clearTriagePanel();
+    await api('POST', '/reset', {});
+    showPatientEmpty();
+    updateStatsBar();
+    showToast('Episode reset', 'info');
+  } catch(e) {}
+  finally { setLoading(btn, false, '&#8635; Reset Episode'); }
+}
+
+// ── ESI Selection ──────────────────────────────
+function selectESI(level) {
+  state.selectedESI = level;
+  document.querySelectorAll('.esi-btn').forEach(b => {
+    b.classList.toggle('selected', parseInt(b.dataset.esi) === level);
+  });
+  document.getElementById('esiSelectedLabel').textContent =
+    `ESI ${level} — ${ESI_LABELS[level]}`;
+
+  // Auto-populate suggestions
+  clearChips('actions');
+  (ESI_SUGGESTIONS[level] || []).forEach(a => addChip('actions', a));
+  clearChips('flags');
+  updateChipCounts();
+  enableSubmitIfReady();
+}
+
+// ── Chip Management ────────────────────────────
+function addAction() {
+  const inp = document.getElementById('actionInput');
+  const val = inp.value.trim();
+  if (!val) return;
+  addChip('actions', val);
+  inp.value = '';
+}
+
+function addFlag() {
+  const inp = document.getElementById('flagInput');
+  const val = inp.value.trim();
+  if (!val) return;
+  addChip('flags', val);
+  inp.value = '';
+}
+
+function addChip(type, text) {
+  const arr = type === 'actions' ? state.actions : state.flags;
+  if (arr.includes(text)) return;
+  arr.push(text);
+  renderChips(type);
+  updateChipCounts();
+}
+
+function removeChip(type, text) {
+  const arr = type === 'actions' ? state.actions : state.flags;
+  const idx = arr.indexOf(text);
+  if (idx > -1) arr.splice(idx, 1);
+  renderChips(type);
+  updateChipCounts();
+}
+
+function clearChips(type) {
+  if (type === 'actions') state.actions = [];
+  else state.flags = [];
+  renderChips(type);
+}
+
+function renderChips(type) {
+  const container = document.getElementById(type === 'actions' ? 'actionsChips' : 'flagsChips');
+  const arr = type === 'actions' ? state.actions : state.flags;
+  const cls = type === 'actions' ? 'chip-action' : 'chip-flag';
+  container.innerHTML = arr.map(t => `
+    <span class="chip ${cls}">
+      ${escHtml(t)}
+      <button class="chip-remove" onclick="removeChip('${type}', ${JSON.stringify(t)})" title="Remove">&times;</button>
+    </span>`).join('');
+}
+
+function updateChipCounts() {
+  document.getElementById('actionCount').textContent = state.actions.length;
+  document.getElementById('flagCount').textContent = state.flags.length;
+}
+
+function enableSubmitIfReady() {
+  const ok = state.selectedESI !== null && state.currentObs !== null && state.episodeRunning;
+  document.getElementById('btnSubmit').disabled = !ok;
+}
+
+// ── Submit Triage ──────────────────────────────
+async function submitTriage() {
+  if (!state.selectedESI || !state.currentObs) return;
+  const btn = document.getElementById('btnSubmit');
+  setLoading(btn, true);
+  try {
+    const action = {
+      triage_level: state.selectedESI,
+      recommended_actions: [...state.actions],
+      critical_flags: [...state.flags],
+      reasoning: '',
+    };
+
+    const res = await api('POST', '/step', { action });
+    handleStepResult(res);
+  } catch(e) {}
+  finally { setLoading(btn, false, '&#10003; Submit Triage Decision'); }
+}
+
+function handleStepResult(res) {
+  const { observation, reward, done, info } = res;
+
+  // Record step
+  state.episodeSteps.push({
+    patient: info.case_id || state.currentObs.patient_id,
+    chiefComplaint: state.currentObs.history?.chief_complaint || '—',
+    assignedESI: state.selectedESI,
+    correctESI: info.correct_triage_level,
+    score: reward.score,
+    flags: state.flags,
+  });
+  state.scores.push(reward.score);
+
+  // Show reward panel
+  showReward(reward);
+  updateStatsBar();
+
+  if (done) {
+    state.episodeRunning = false;
+    state.currentObs = null;
+    showEpisodeResults();
+    document.getElementById('btnSubmit').disabled = true;
+    showToast('Episode complete! See results below.', 'success');
+  } else {
+    renderObservation(observation);
+    clearTriagePanel(false);
+    showToast(`Step scored: ${reward.score.toFixed(2)}`, reward.score >= 0.7 ? 'success' : 'info');
+  }
+}
+
+// ── Render Observation ─────────────────────────
+function renderObservation(obs) {
+  if (!obs) return;
+  state.currentObs = obs;
+
+  document.getElementById('noPatientMsg').style.display = 'none';
+  document.getElementById('patientData').style.display = 'block';
+
+  const total = obs.total_cases || '?';
+  const idx = (obs.case_index !== undefined ? obs.case_index : 0) + 1;
+  document.getElementById('patientCounter').textContent = `Patient ${idx} of ${total}`;
+  document.getElementById('patientId').textContent = obs.patient_id || '';
+
+  // Chief complaint
+  const cc = obs.history?.chief_complaint || 'Unknown';
+  document.getElementById('chiefComplaint').textContent = cc;
+
+  // Vitals
+  const v = obs.vitals || {};
+  renderVital('vHR', 'vHRVal', v.heart_rate, '', 'red', v.heart_rate > 100 || v.heart_rate < 60);
+  renderVital('vBP', 'vBPVal', `${v.systolic_bp}/${v.diastolic_bp}`, '', 'red', v.systolic_bp < 90 || v.systolic_bp > 180);
+  renderVital('vRR', 'vRRVal', v.respiratory_rate, '', 'amber', v.respiratory_rate > 20);
+  renderVital('vSpo2', 'vSpo2Val', v.oxygen_saturation ? v.oxygen_saturation.toFixed(1) : '—', '', 'red', v.oxygen_saturation < 95);
+  renderVital('vTemp', 'vTempVal', v.temperature_celsius ? v.temperature_celsius.toFixed(1) : '—', '', 'amber', v.temperature_celsius > 38.5);
+  renderVital('vGCS', 'vGCSVal', v.glasgow_coma_scale, '', 'red', v.glasgow_coma_scale < 13);
+
+  // Symptoms
+  const sc = document.getElementById('symptomsContainer');
+  const symptoms = obs.symptoms || [];
+  sc.innerHTML = symptoms.map(s =>
+    `<span class="pill pill-symptom">${escHtml(s)}</span>`
+  ).join('');
+
+  // History
+  const h = obs.history || {};
+  document.getElementById('hAgeSex').textContent = `${h.age || '?'}y ${h.sex || ''}`;
+  document.getElementById('hOnset').textContent = h.onset_hours !== undefined
+    ? formatOnset(h.onset_hours) : '—';
+  document.getElementById('hPMH').textContent = (h.past_medical_history || []).join(', ') || 'None';
+  document.getElementById('hMeds').textContent = (h.current_medications || []).join(', ') || 'None';
+  document.getElementById('hAllergies').textContent = (h.allergies || []).join(', ') || 'NKDA';
+  document.getElementById('hSurgical').textContent = (h.surgical_history || []).join(', ') || 'None';
+
+  // Additional context
+  const actxEl = document.getElementById('additionalContext');
+  if (obs.additional_context) {
+    actxEl.textContent = obs.additional_context;
+    actxEl.style.display = 'block';
+  } else {
+    actxEl.style.display = 'none';
+  }
+
+  enableSubmitIfReady();
+}
+
+function renderVital(cardId, valId, value, unit, alertType, isAbnormal) {
+  const card = document.getElementById(cardId);
+  const valEl = document.getElementById(valId);
+  valEl.textContent = value !== undefined && value !== null ? value : '—';
+  card.className = 'vital-card' + (isAbnormal ? ` abnormal-${alertType}` : '');
+}
+
+function formatOnset(hours) {
+  if (hours < 1) return `${Math.round(hours * 60)} minutes`;
+  if (hours < 24) return `${hours} hours`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''}`;
+}
+
+// ── Reward Display ─────────────────────────────
+function showReward(reward) {
+  const panel = document.getElementById('rewardPanel');
+  panel.classList.add('visible');
+
+  const score = reward.score;
+  const scoreClass = score >= 0.7 ? 'score-high' : score >= 0.4 ? 'score-mid' : 'score-low';
+  const barClass = score >= 0.7 ? 'bar-high' : score >= 0.4 ? 'bar-mid' : 'bar-low';
+
+  document.getElementById('rewardScoreNum').textContent = score.toFixed(4);
+  document.getElementById('rewardScoreNum').className = `reward-score-num ${scoreClass}`;
+
+  const bar = document.getElementById('rewardBar');
+  bar.className = `score-bar-fill ${barClass}`;
+  // Animate
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { bar.style.width = (score * 100) + '%'; });
+  });
+
+  // Feedback
+  const fb = reward.feedback || '';
+  const shortFb = fb.length > 60 ? fb.substring(0, 60) + '…' : fb;
+  document.getElementById('rewardFeedbackShort').textContent = shortFb;
+
+  // Breakdown table
+  const bd = reward.breakdown || {};
+  const tbody = document.getElementById('breakdownBody');
+  const rows = [
+    ['Triage Accuracy', bd.triage_level_score],
+    ['Action Coverage', bd.action_coverage_score],
+    ['Flag Recall', bd.flag_recall_score],
+    ['Flag Bonus', bd.critical_flag_bonus],
+    ['Missing Flag Penalty', bd.missing_flag_penalty],
+    ['Over-Triage Penalty', bd.overtriage_penalty],
+  ];
+  tbody.innerHTML = rows.map(([label, val]) => {
+    if (val === undefined || val === null) return '';
+    const cls = val > 0 ? 'positive' : val < 0 ? 'negative' : 'neutral';
+    const sign = val > 0 ? '+' : '';
+    return `<tr><td>${label}</td><td class="${cls}">${sign}${val.toFixed(4)}</td></tr>`;
+  }).join('');
+
+  document.getElementById('breakdownTotal').textContent = score.toFixed(4);
+}
+
+// ── Episode Results ────────────────────────────
+function showEpisodeResults() {
+  const steps = state.episodeSteps;
+  if (!steps.length) return;
+
+  const totalScore = state.scores.reduce((a, b) => a + b, 0) / state.scores.length;
+  const targets = { task_1: 0.60, task_2: 0.40, task_3: 0.20 };
+  const target = targets[state.selectedTask] || 0.60;
+  const passed = totalScore >= target;
+
+  document.getElementById('episodeTitle').textContent =
+    `Task Complete — ${state.selectedTask.replace('_', ' ').toUpperCase()}`;
+  document.getElementById('episodeFinalScore').textContent = totalScore.toFixed(4);
+
+  const pfEl = document.getElementById('episodePassFail');
+  pfEl.innerHTML = passed
+    ? `<span class="pass-badge">&#10003; PASS &mdash; ≥ ${target}</span>`
+    : `<span class="fail-badge">&#10005; FAIL &mdash; target ${target}</span>`;
+
+  // Per-patient bars
+  const barsEl = document.getElementById('patientBars');
+  barsEl.innerHTML = steps.map(s => {
+    const pct = (s.score * 100).toFixed(1);
+    const barColor = s.score >= 0.7 ? '#16A34A' : s.score >= 0.4 ? '#D97706' : '#DC2626';
+    return `
+      <div class="patient-bar-row">
+        <span class="patient-bar-label">${escHtml(s.patient)}</span>
+        <div class="patient-bar-track">
+          <div class="patient-bar-fill" style="width:0%;background:${barColor}"
+            data-width="${pct}">${pct}%</div>
+        </div>
+        <span class="patient-bar-score ${s.score>=0.7?'high':s.score>=0.4?'mid':'low'}">
+          ${s.score.toFixed(3)}
+        </span>
+      </div>`;
+  }).join('');
+
+  // Animate bars
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.patient-bar-fill').forEach(el => {
+      requestAnimationFrame(() => { el.style.width = el.dataset.width + '%'; });
+    });
+  });
+
+  // Step log
+  const tbody = document.getElementById('stepLogBody');
+  tbody.innerHTML = steps.map((s, i) => {
+    const scoreCls = s.score >= 0.7 ? 'high' : s.score >= 0.4 ? 'mid' : 'low';
+    const flags = s.flags.slice(0, 2).join(', ') + (s.flags.length > 2 ? '…' : '');
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td><strong>${escHtml(s.patient)}</strong></td>
+        <td>${escHtml(s.chiefComplaint)}</td>
+        <td><span class="esi-dot" data-esi="${s.assignedESI}">${s.assignedESI}</span></td>
+        <td><span class="esi-dot" data-esi="${s.correctESI}">${s.correctESI}</span></td>
+        <td class="score-cell ${scoreCls}">${s.score.toFixed(3)}</td>
+        <td style="font-size:11px;color:var(--text-secondary)">${escHtml(flags || '—')}</td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('episodeResults').classList.add('visible');
+  document.getElementById('episodeResults').scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideEpisodeResults() {
+  document.getElementById('episodeResults').classList.remove('visible');
+}
+
+// ── Stats Bar ──────────────────────────────────
+function updateStatsBar() {
+  const scores = state.scores;
+  if (!scores.length) {
+    document.getElementById('avgScore').textContent = '—';
+    document.getElementById('avgScoreBar').style.width = '0%';
+    document.getElementById('stepCount').textContent = '0';
+    return;
+  }
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const pct = (avg * 100).toFixed(1);
+  const el = document.getElementById('avgScore');
+  el.textContent = avg.toFixed(3);
+  el.className = 'stat-value ' + (avg >= 0.7 ? 'good' : avg >= 0.4 ? 'warning' : 'bad');
+  document.getElementById('avgScoreBar').style.width = pct + '%';
+  document.getElementById('stepCount').textContent = scores.length;
+}
+
+// ── Panel Helpers ──────────────────────────────
+function showPatientEmpty() {
+  document.getElementById('noPatientMsg').style.display = 'block';
+  document.getElementById('patientData').style.display = 'none';
+  document.getElementById('patientCounter').textContent = '—';
+  document.getElementById('patientId').textContent = '';
+}
+
+function clearTriagePanel(resetESI = true) {
+  if (resetESI) {
+    state.selectedESI = null;
+    document.querySelectorAll('.esi-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('esiSelectedLabel').textContent = 'No ESI selected';
+  }
+  clearChips('actions');
+  clearChips('flags');
+  updateChipCounts();
+  document.getElementById('rewardPanel').classList.remove('visible');
+  document.getElementById('actionInput').value = '';
+  document.getElementById('flagInput').value = '';
+}
+
+// ── Live Log ───────────────────────────────────
+function logApi(method, path, status, ms) {
+  const ts = new Date().toLocaleTimeString();
+  const entry = { ts, method, path, status, ms };
+  state.logEntries.unshift(entry);
+  if (state.logEntries.length > 50) state.logEntries.pop();
+  renderLog();
+  const el = document.getElementById('logCount');
+  el.textContent = `(${state.logEntries.length} entries)`;
+}
+
+function renderLog() {
+  const body = document.getElementById('logBody');
+  const entries = state.logEntries.slice(0, 20);
+  body.innerHTML = entries.map(e => {
+    const statusColor = e.status >= 200 && e.status < 300 ? '#98C379' :
+                        e.status >= 400 ? '#E06C75' : '#E5C07B';
+    return `<div class="log-entry">
+      <span class="log-time">${e.ts}</span>
+      <span class="log-method ${e.method}">${e.method}</span>
+      <span class="log-path">${escHtml(e.path)}</span>
+      <span class="log-status" style="color:${statusColor}">${e.status} (${e.ms}ms)</span>
+    </div>`;
+  }).join('');
+}
+
+function clearLog(e) {
+  e.stopPropagation();
+  state.logEntries = [];
+  document.getElementById('logBody').innerHTML = '';
+  document.getElementById('logCount').textContent = '(0 entries)';
+}
+
+function toggleLog() {
+  state.logOpen = !state.logOpen;
+  document.getElementById('logBody').classList.toggle('open', state.logOpen);
+  document.getElementById('logChevron').classList.toggle('open', state.logOpen);
+}
+
+// ── Toast Notifications ────────────────────────
+function showToast(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('toastContainer');
+  const icons = { error: '⚠', success: '✓', info: 'ℹ' };
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `<span>${icons[type] || ''}</span><span>${escHtml(message)}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('dismissing');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, duration);
+}
+
+// ── Utility ────────────────────────────────────
+function escHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Init ───────────────────────────────────────
+async function init() {
+  selectTask('task_1');
+  try {
+    const s = await api('GET', '/state');
+    if (s && s.episode_length > 0 && s.current_index < s.episode_length) {
+      // Restore in-progress episode
+      state.episodeRunning = true;
+      state.scores = s.episode_scores || [];
+      updateStatsBar();
+
+      // Fetch current observation if mid-episode
+      if (s.current_patient_id) {
+        const obs = await api('GET', `/case/${s.current_patient_id}`);
+        if (obs) {
+          // rebuild minimal obs structure from case
+          renderObservation({
+            patient_id: obs.patient_id,
+            vitals: obs.vitals,
+            symptoms: obs.symptoms,
+            history: obs.history,
+            additional_context: obs.additional_context,
+            case_index: s.current_index,
+            total_cases: s.episode_length,
+          });
+          showToast('Restored in-progress episode', 'info');
+        }
+      }
+    } else {
+      showPatientEmpty();
+    }
+  } catch {
+    showPatientEmpty();
+  }
+}
+
+init();
+</script>
+</body>
+</html>

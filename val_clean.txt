@@ -1,0 +1,46 @@
+[OK] environment.py loaded - 25 patient cases
+     PT-001 [easy  ] ESI=4  cut arm
+     PT-002 [easy  ] ESI=4  twisted ankle playing basketball
+     PT-003 [easy  ] ESI=5  sore throat for 2 days
+     PT-004 [easy  ] ESI=5  back pain
+     PT-005 [easy  ] ESI=5  cold symptoms for 3 days
+     PT-006 [medium] ESI=2  chest pain
+     PT-007 [medium] ESI=3  cough and fever for 4 days
+     PT-008 [medium] ESI=3  sudden severe flank pain
+     PT-009 [medium] ESI=2  confusion and fever
+     PT-010 [medium] ESI=3  abdominal pain
+     PT-011 [medium] ESI=2  thunderclap headache
+     PT-012 [hard  ] ESI=1  unresponsive
+     PT-013 [hard  ] ESI=1  severe breathing difficulty
+     PT-014 [hard  ] ESI=1  weakness and speech difficulty
+     PT-015 [hard  ] ESI=1  fainting episode
+     PT-016 [hard  ] ESI=1  vomiting blood
+     PT-017 [hard  ] ESI=1  severe sudden back pain
+     PT-018 [hard  ] ESI=2  chest pain and breathing difficulty
+     PT-019 [hard  ] ESI=1  severe headache and rash
+     PT-020 [medium] ESI=4  knee pain
+     PT-021 [medium] ESI=2  heavy vaginal bleeding
+     PT-022 [hard  ] ESI=2  sudden vision loss
+     PT-023 [hard  ] ESI=2  right-sided pain and jaundice
+     PT-024 [hard  ] ESI=2  palpitations and fatigue
+     PT-025 [hard  ] ESI=1  seizure
+
+[OK] reset()  patient=PT-001  HR=72  GCS=15
+[OK] step()   score=0.7609  done=True
+     breakdown={'triage_level_score': 1.0, 'action_coverage_score': 0.3043, 'flag_recall_score': 1.0, 'missing_flag_penalty': -0.0, 'overtriage_penalty': -0.0, 'critical_flag_bonus': 0.0, 'total': 0.7609}
+
+[OK] All 25 reward scores in [0,1]  min=0.0000  max=0.7162  mean=0.1239
+
+[OK] state() keys: ['episode_length', 'current_index', 'done', 'episode_scores', 'mean_score', 'current_patient_id', 'last_action', 'last_reward', 'all_case_ids']
+     episode_length=2  current_patient=PT-001
+
+[OK] Running all 3 tasks with baseline agent...
+     task_1: score=0.6108  target>=0.6  [PASS]
+     task_2: score=0.0759  target>=0.4  [below-target (expected for baseline)]
+     task_3: score=0.0000  target>=0.2  [below-target (expected for baseline)]
+
+[OK] case_ids_by_difficulty: {'easy': 5, 'medium': 8, 'hard': 12}
+
+============================================================
+ALL VALIDATION CHECKS PASSED
+============================================================

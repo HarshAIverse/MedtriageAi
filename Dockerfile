@@ -12,8 +12,7 @@ COPY environment.py tasks.py app.py inference.py openenv.yaml validate.py ./
 # Copy server module (required for multi-mode deployment)
 COPY server/ ./server/
 
-# Copy static dashboard assets
-COPY static/ ./static/
+
 
 # Expose the Hugging Face Spaces default port
 EXPOSE 7860

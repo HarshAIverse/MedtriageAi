@@ -68,11 +68,28 @@ class RunTaskRequest(BaseModel):
 
 @app.get("/", include_in_schema=False)
 async def root():
-    """Serve the dashboard or a health-check JSON."""
+    """Serve the interactive dashboard if available, otherwise return API info."""
     index_path = os.path.join(_STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path, media_type="text/html")
-    return {"status": "ok", "version": "1.0.0", "message": "static/index.html not found"}
+    # Fallback: clean JSON API info (e.g. when dashboard not bundled)
+    return {
+        "status": "MedTriage AI running",
+        "version": "1.0.0",
+        "description": "Medical Triage & Clinical Decision Support — OpenEnv",
+        "endpoints": {
+            "health":    "GET  /health",
+            "reset":     "POST /reset",
+            "step":      "POST /step",
+            "state":     "GET  /state",
+            "tasks":     "GET  /tasks",
+            "cases":     "GET  /cases",
+            "run_task":  "POST /run_task",
+            "docs":      "GET  /docs",
+        },
+        "inference": "python inference.py",
+        "validate":  "python validate.py",
+    }
 
 
 @app.get("/health")

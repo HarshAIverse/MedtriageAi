@@ -1,0 +1,17 @@
+﻿uv : Resolved 98 packages 
+in 1ms
+At line:1 char:1
++ uv lock 2>&1 | Out-File 
+-Encoding UTF8 
+uv_err.txt; python -c 
+"print(o ...
++ ~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (R  
+  esolved 98 packages i   
+ n 1ms:String) [], Rem    
+oteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 

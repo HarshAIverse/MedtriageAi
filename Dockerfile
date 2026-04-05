@@ -9,8 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy core environment files
 COPY environment.py tasks.py app.py inference.py openenv.yaml ./
 
-# Copy static dashboard assets
-COPY static/ ./static/
+
 
 # Expose the Hugging Face Spaces default port
 EXPOSE 7860

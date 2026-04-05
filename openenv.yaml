@@ -179,12 +179,13 @@ reward:
   range: "0.0–1.0"
   description: >
     Composite reward signal with the following components:
-    - Triage level accuracy (40%): 1.0 exact, 0.5 for ±1 level, 0.0 for ≥2 levels off
-    - Action coverage (30%): keyword overlap with ground-truth canonical actions
-    - Critical flag recall (15%): proportion of life-threatening flags identified
-    - Critical flag bonus (up to +0.15): bonus for correctly catching critical flags
-    - Missing flag penalty (-0.3 max): penalty for missing life-threatening conditions
-    - Over-triage penalty (-0.1): penalty for assigning ESI 1–2 to ESI 4–5 patients
+    - Triage level accuracy (50%): 1.0 exact, 0.5 for +/-1 level, 0.0 for >= 2 levels off
+    - Action concept coverage (20%): synonym+bigram aware match against canonical actions
+    - Critical flag recall (20%): proportion of life-threatening flags correctly identified
+    - Critical flag bonus (up to +10%): bonus proportional to flag recall when flags caught
+    - Missing flag penalty (up to -0.30): penalty for entirely missing life-threatening conditions
+    - Over-triage penalty (-0.10): penalty for assigning ESI 1-2 to clearly ESI 4-5 patients
+    All components summed then clamped to [0.0, 1.0].
 
 environment:
   max_steps_per_episode: 25

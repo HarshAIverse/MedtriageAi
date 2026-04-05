@@ -298,6 +298,7 @@ def run_task_with_logging(
 
     t0 = time.monotonic()
     done = False
+    step_index = 0
 
     while not done:
         action = agent(obs)
@@ -309,13 +310,15 @@ def run_task_with_logging(
 
         _emit_step(
             task_id=task_id,
-            case_index=info.get("episode_scores_so_far", [0]).__len__() - 1,
+            case_index=step_index,
             patient_id=info["case_id"],
             score=reward.score,
             triage_level=action.triage_level,
             correct_level=info["correct_triage_level"],
         )
+        step_index += 1
         obs = next_obs
+
 
     wall_time = time.monotonic() - t0
 

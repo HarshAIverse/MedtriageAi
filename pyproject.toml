@@ -27,6 +27,7 @@ dependencies = [
     "openai>=1.30.0",
     "python-multipart>=0.0.9",
     "aiofiles>=23.2.0",
+    "openenv-core>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -36,10 +37,10 @@ dev = [
 ]
 
 [project.scripts]
-# Run inference: medical-triage-infer
+# Run inference:  medical-triage-infer
 medical-triage-infer = "inference:main"
-# Serve API:    medical-triage-serve
-medical-triage-serve = "app:app"
+# Serve API:      medical-triage-serve
+medical-triage-serve = "server.app:start"
 
 [project.urls]
 Homepage   = "https://huggingface.co/spaces/HarshAIverse/medical-triage-env"

@@ -2,6 +2,8 @@
 name = "medtriage-ai"
 version = "0.1.0"
 description = "MedTriage AI OpenEnv environment"
+requires-python = ">=3.9"
+
 dependencies = [
     "fastapi",
     "uvicorn",
@@ -10,3 +12,7 @@ dependencies = [
 
 [project.scripts]
 medical-triage-serve = "server.app:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
